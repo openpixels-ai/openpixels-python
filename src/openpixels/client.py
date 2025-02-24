@@ -4,9 +4,11 @@ import httpx
 
 
 class OpenPixelsClient:
-    def __init__(self, base_url="https://workers.openpixels.ai"):
+    def __init__(self, api_key: str, base_url="https://worker.openpixels.ai"):
         self.base_url = base_url
-        self.client = httpx.AsyncClient(base_url=self.base_url)
+        self.client = httpx.AsyncClient(
+            base_url=self.base_url, headers={"Authorization": f"Key {api_key}"}
+        )
 
     async def submit(self, payload: dict) -> dict:
         # Submit the payload and obtain a job id.
@@ -19,7 +21,7 @@ class OpenPixelsClient:
 
         # Poll the /poll endpoint until a non-empty response is received.
         while True:
-            poll_response = await self.client.get("/poll", params={"id": job_id})
+            poll_response = await self.client.get(f"/poll/{job_id}")
             poll_response.raise_for_status()
             poll_data = poll_response.json()
             # If we get a non-empty response, assume processing is complete.
