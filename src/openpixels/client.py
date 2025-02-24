@@ -20,15 +20,16 @@ class FluxSchnell(TypedDict):
     seed: int | None
 
 
-class Params(Union[FluxDev, FluxSchnell]):
-    pass
+Params = Union[FluxDev, FluxSchnell]
 
 
 class AsyncOpenPixels:
     def __init__(self, api_key: str, base_url="https://worker.openpixels.ai"):
         self.base_url = base_url
         self.client = httpx.AsyncClient(
-            base_url=self.base_url, headers={"Authorization": f"Key {api_key}"}
+            base_url=self.base_url,
+            headers={"Authorization": f"Key {api_key}"},
+            http2=True,
         )
 
     async def submit(self, input: dict) -> str:
@@ -58,7 +59,7 @@ class AsyncOpenPixels:
         job_id = await self.submit(payload)
         async for result in self.subscribe(job_id):
             if result["type"] == "result":
-                return result
+                return result["data"]
 
     async def close(self):
         await self.client.aclose()
