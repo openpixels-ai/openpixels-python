@@ -59,7 +59,7 @@ class AsyncOpenPixels:
         job_id = await self.submit(payload)
         async for result in self.subscribe(job_id):
             if result["type"] == "result":
-                return result["data"]
+                return {"data": result["data"], "meta": result["meta"]}
 
     async def close(self):
         await self.client.aclose()
