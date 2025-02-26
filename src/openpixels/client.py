@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import AsyncGenerator, Literal, TypedDict, Union
 
 import httpx
@@ -31,15 +32,19 @@ class AsyncOpenPixels:
             headers={"Authorization": f"Key {api_key}"},
             http2=True,
         )
+        self.jobs = {}
 
     async def submit(self, input: dict) -> str:
         # Submit the payload and obtain a job id.
+        start_time = time.time()
         submit_response = await self.client.post("/submit", json=input)
         submit_response.raise_for_status()
         submit_data = submit_response.json()
         job_id = submit_data.get("id")
         if not job_id:
             raise ValueError("No job id received from /submit")
+
+        self.jobs[job_id] = {"start_time": start_time}
         return job_id
 
     async def subscribe(self, job_id: str) -> AsyncGenerator[dict, None]:
@@ -50,6 +55,7 @@ class AsyncOpenPixels:
             poll_data = poll_response.json()
             # If we get a non-empty response, assume processing is complete.
             if poll_data:
+                print("yielding poll data", poll_data)
                 yield poll_data
 
                 if poll_data["type"] == "result":
@@ -59,7 +65,21 @@ class AsyncOpenPixels:
         job_id = await self.submit(payload)
         async for result in self.subscribe(job_id):
             if result["type"] == "result":
-                return {"data": result["data"], "meta": result["meta"]}
+                end_time = time.time()
+                self.jobs[job_id]["end_time"] = end_time
+                self.jobs[job_id]["duration"] = (
+                    end_time - self.jobs[job_id]["start_time"]
+                )
+                overhead = (
+                    self.jobs[job_id]["duration"] - result["meta"]["providerTime"]
+                )
+                print(
+                    f"Job {job_id} completed in {self.jobs[job_id]['duration']} seconds (overhead: {overhead} seconds)"
+                )
+                return {
+                    "data": result["data"],
+                    "meta": {**result.get("meta", {}), "overhead": overhead},
+                }
 
     async def close(self):
         await self.client.aclose()
