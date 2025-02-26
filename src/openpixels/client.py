@@ -1,8 +1,12 @@
 import asyncio
+import logging
 import time
 from typing import AsyncGenerator, Literal, TypedDict, Union
 
 import httpx
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class FluxDev(TypedDict):
@@ -55,7 +59,7 @@ class AsyncOpenPixels:
             poll_data = poll_response.json()
             # If we get a non-empty response, assume processing is complete.
             if poll_data:
-                print("yielding poll data", poll_data)
+                logger.info(f"yielding poll data: {poll_data}")
                 yield poll_data
 
                 if poll_data["type"] == "result":
@@ -73,11 +77,12 @@ class AsyncOpenPixels:
                 overhead = (
                     self.jobs[job_id]["duration"] - result["meta"]["providerTime"]
                 )
-                print(
+                logger.info(
                     f"Job {job_id} completed in {self.jobs[job_id]['duration']} seconds (overhead: {overhead} seconds)"
                 )
                 return {
-                    "data": result["data"],
+                    "error": result.get("error"),
+                    "data": result.get("data"),
                     "meta": {**result.get("meta", {}), "overhead": overhead},
                 }
 
