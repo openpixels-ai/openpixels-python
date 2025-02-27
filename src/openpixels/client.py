@@ -42,7 +42,8 @@ class AsyncOpenPixels:
         # Submit the payload and obtain a job id.
         start_time = time.time()
         submit_response = await self.client.post("/submit", json=input)
-        submit_response.raise_for_status()
+        if not submit_response.is_success:
+            raise ValueError(f"Failed to submit job: {submit_response.text}")
         submit_data = submit_response.json()
         job_id = submit_data.get("id")
         if not job_id:
@@ -54,8 +55,15 @@ class AsyncOpenPixels:
     async def subscribe(self, job_id: str) -> AsyncGenerator[dict, None]:
         # Poll the /poll endpoint until a non-empty response is received.
         while True:
-            poll_response = await self.client.get(f"/poll/{job_id}")
-            poll_response.raise_for_status()
+            try:
+                poll_response = await self.client.get(f"/poll/{job_id}", timeout=30)
+            except httpx.TimeoutException:
+                logger.info(f"Job {job_id} timed out; continuing to poll.")
+                continue
+
+            if not poll_response.is_success:
+                yield {"type": "result", "error": poll_response.text, "meta": {}}
+                break
             poll_data = poll_response.json()
             # If we get a non-empty response, assume processing is complete.
             if poll_data:
@@ -74,16 +82,16 @@ class AsyncOpenPixels:
                 self.jobs[job_id]["duration"] = (
                     end_time - self.jobs[job_id]["start_time"]
                 )
-                overhead = (
-                    self.jobs[job_id]["duration"] - result["meta"]["providerTime"]
-                )
-                logger.info(
-                    f"Job {job_id} completed in {self.jobs[job_id]['duration']} seconds (overhead: {overhead} seconds)"
-                )
+                # overhead = (
+                #     self.jobs[job_id]["duration"] - result["meta"]["providerTime"]
+                # )
+                # logger.info(
+                #     f"Job {job_id} completed in {self.jobs[job_id]['duration']} seconds (overhead: {overhead} seconds)"
+                # )
                 return {
                     "error": result.get("error"),
                     "data": result.get("data"),
-                    "meta": {**result.get("meta", {}), "overhead": overhead},
+                    # "meta": {**result.get("meta", {}), "overhead": overhead},
                 }
 
     async def close(self):
