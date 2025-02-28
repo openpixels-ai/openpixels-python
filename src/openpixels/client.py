@@ -29,12 +29,15 @@ Params = Union[FluxDev, FluxSchnell]
 
 
 class AsyncOpenPixels:
+    connected_machine_id: str
+
     def __init__(self, api_key: str, base_url="https://worker.openpixels.ai"):
         self.base_url = base_url
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
             headers={"Authorization": f"Key {api_key}"},
             http2=True,
+            timeout=5,
         )
         self.jobs = {}
 
@@ -42,6 +45,7 @@ class AsyncOpenPixels:
         # Submit the payload and obtain a job id.
         start_time = time.time()
         submit_response = await self.client.post("/submit", json=input)
+        self.connected_machine_id = submit_response.headers.get("machine-id")
         if not submit_response.is_success:
             raise ValueError(f"Failed to submit job: {submit_response.text}")
         submit_data = submit_response.json()
@@ -56,7 +60,11 @@ class AsyncOpenPixels:
         # Poll the /poll endpoint until a non-empty response is received.
         while True:
             try:
-                poll_response = await self.client.get(f"/poll/{job_id}", timeout=30)
+                poll_response = await self.client.get(
+                    f"/poll/{job_id}",
+                    timeout=30,
+                    headers={"fly-force-instance-id": self.connected_machine_id},
+                )
             except httpx.TimeoutException:
                 logger.info(f"Job {job_id} timed out; continuing to poll.")
                 continue
@@ -75,6 +83,7 @@ class AsyncOpenPixels:
 
     async def run(self, payload: dict) -> dict:
         job_id = await self.submit(payload)
+        print("machine id", self.connected_machine_id)
         async for result in self.subscribe(job_id):
             if result["type"] == "result":
                 end_time = time.time()
