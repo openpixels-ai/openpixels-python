@@ -28,10 +28,13 @@ class FluxSchnell(TypedDict):
 Params = Union[FluxDev, FluxSchnell]
 
 
+BASE_URL = "https://worker.openpixels.ai"
+
+
 class AsyncOpenPixels:
     connected_machine_id: str
 
-    def __init__(self, api_key: str, base_url="https://worker.openpixels.ai"):
+    def __init__(self, api_key: str, base_url=BASE_URL):
         self.base_url = base_url
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
@@ -45,9 +48,10 @@ class AsyncOpenPixels:
         # Submit the payload and obtain a job id.
         start_time = time.time()
         submit_response = await self.client.post("/submit", json=input)
-        self.connected_machine_id = submit_response.headers.get("machine-id")
+        print("submit_response", submit_response)
         if not submit_response.is_success:
             raise ValueError(f"Failed to submit job: {submit_response.text}")
+        self.connected_machine_id = submit_response.headers.get("machine-id")
         submit_data = submit_response.json()
         job_id = submit_data.get("id")
         if not job_id:
@@ -91,24 +95,10 @@ class AsyncOpenPixels:
                 self.jobs[job_id]["duration"] = (
                     end_time - self.jobs[job_id]["start_time"]
                 )
-                # overhead = (
-                #     self.jobs[job_id]["duration"] - result["meta"]["providerTime"]
-                # )
-                # logger.info(
-                #     f"Job {job_id} completed in {self.jobs[job_id]['duration']} seconds (overhead: {overhead} seconds)"
-                # )
-                return {
-                    "error": result.get("error"),
-                    "data": result.get("data"),
-                    # "meta": {**result.get("meta", {}), "overhead": overhead},
-                }
+                return {"error": result.get("error"), "data": result.get("data")}
 
     async def close(self):
         await self.client.aclose()
-
-
-class OpenPixels:
-    pass
 
 
 # Example usage:
@@ -121,3 +111,30 @@ class OpenPixels:
 #         await client.close()
 #
 # asyncio.run(main())
+
+
+class OpenPixels:
+    def __init__(self, api_key=None, base_url=BASE_URL):
+        self.async_client = AsyncOpenPixels(api_key=api_key, base_url=base_url)
+
+    def submit(self, payload: dict) -> str:
+        return asyncio.run(self.async_client.submit(payload))
+
+    def subscribe(self, job_id: str):
+        async_gen = self.async_client.subscribe(job_id)
+
+        # Convert async generator to sync generator
+        while True:
+            try:
+                result = asyncio.run(async_gen.__anext__())
+                yield result
+                if result.get("type") == "result":
+                    break
+            except StopAsyncIteration:
+                break
+
+    def run(self, payload: dict) -> dict:
+        return asyncio.run(self.async_client.run(payload))
+
+    def close(self):
+        asyncio.run(self.async_client.close())

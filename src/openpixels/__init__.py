@@ -1,6 +1,6 @@
-from .client import AsyncOpenPixels
+from .client import AsyncOpenPixels, OpenPixels
 
-__all__ = ["AsyncOpenPixels"]
+__all__ = ["AsyncOpenPixels", "OpenPixels"]
 
 # Update the __module__ attribute for exported symbols so that
 # error messages point to this module instead of the module
