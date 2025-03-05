@@ -50,7 +50,7 @@ class AsyncOpenPixels:
                 # this is wrong...? you don't return an {error: ... if there was a connection error, because it might be fine.}
                 # yield {"type": "result", "error": poll_response.text, "meta": {}}
                 # perhaps should throw here.
-                break
+                raise ValueError(f"Failed to poll job: {poll_response.text}")
 
             poll_data = poll_response.json()
             yield poll_data
@@ -127,7 +127,7 @@ class OpenPixels:
                 # this is wrong...? you don't return an {error: ... if there was a connection error, because it might be fine.}
                 # yield {"type": "result", "error": poll_response.text, "meta": {}}
                 # perhaps should throw here.
-                break
+                raise ValueError(f"Failed to poll job: {poll_response.text}")
 
             poll_data = poll_response.json()
             yield poll_data
