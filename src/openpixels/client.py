@@ -16,7 +16,7 @@ class AsyncOpenPixels:
             base_url=self.base_url,
             headers={"Authorization": f"Key {api_key}"},
             http2=True,
-            timeout=5,
+            timeout=90,
         )
 
     async def _submit(self, input: dict) -> str:
@@ -29,10 +29,7 @@ class AsyncOpenPixels:
     async def _subscribe(self, job_id: str) -> AsyncGenerator[dict, None]:
         while True:
             try:
-                poll_response = await self.client.get(
-                    f"/v2/poll/{job_id}",
-                    timeout=30,
-                )
+                poll_response = await self.client.get(f"/v2/poll/{job_id}")
             except httpx.TimeoutException:
                 continue
 
@@ -70,7 +67,7 @@ class OpenPixels:
             base_url=self.base_url,
             headers={"Authorization": f"Key {api_key}"},
             http2=True,
-            timeout=5,
+            timeout=90,
         )
 
     def _submit(self, input: dict) -> str:
@@ -83,10 +80,7 @@ class OpenPixels:
     def _subscribe(self, job_id: str) -> Generator[dict, None, None]:
         while True:
             try:
-                poll_response = self.client.get(
-                    f"/v2/poll/{job_id}",
-                    timeout=30,
-                )
+                poll_response = self.client.get(f"/v2/poll/{job_id}")
             except httpx.TimeoutException:
                 continue
 
