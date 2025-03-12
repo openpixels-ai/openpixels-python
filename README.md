@@ -108,14 +108,17 @@ uv build
 ### Deploying a New Version
 
 1. Update the version in `pyproject.toml`
-2. Build the distribution packages:
+2. Remove the dists folder: `rm -rf dist`
+3. Build the distribution packages:
    ```bash
    uv build
    ```
-3. Upload to PyPI using twine:
+4. Upload to PyPI using twine:
    ```bash
    python3 -m twine upload dist/*
    ```
+5. `git tag vX.Y.Z`
+6. `git push origin vX.Y.Z`
 
 ## License
 
