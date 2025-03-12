@@ -53,11 +53,11 @@ class AsyncOpenPixels:
     async def run(self, payload: dict) -> dict:
         result = await self._submit(payload)
         if result["type"] == "result":
-            return __clean_result(result)
+            return _clean_result(result)
 
         async for result in self._subscribe(result["id"]):
             if result["type"] == "result":
-                return __clean_result(result)
+                return _clean_result(result)
 
     async def close(self):
         await self.client.aclose()
@@ -107,11 +107,11 @@ class OpenPixels:
     def run(self, payload: dict) -> dict:
         result = self._submit(payload)
         if result["type"] == "result":
-            return __clean_result(result)
+            return _clean_result(result)
 
         for result in self._subscribe(result["id"]):
             if result["type"] == "result":
-                return __clean_result(result)
+                return _clean_result(result)
 
     def close(self):
         self.client.close()
@@ -120,9 +120,10 @@ class OpenPixels:
 __all__ = ["OpenPixels", "AsyncOpenPixels"]
 
 
-def __clean_result(result: dict) -> dict:
+def _clean_result(result: dict) -> dict:
     if result["type"] == "result":
         return {
+            **({"id": result.get("id")} if result.get("id") else {}),
             **({"error": result.get("error")} if result.get("error") else {}),
             **({"data": result.get("data")} if result.get("data") else {}),
             "status": result.get("status"),

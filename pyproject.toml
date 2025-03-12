@@ -19,6 +19,9 @@ license = "MIT"
 license-files = ["LICEN[CS]E*"]
 dependencies = ["httpx>=0.28.1", "httpx[http2]>=0.28.1"]
 
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "python-dotenv"]
+
 [project.urls]
 Homepage = "https://openpixels.ai"
 Issues = "https://github.com/openpixels-ai/openpixels-python/issues"
