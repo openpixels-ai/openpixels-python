@@ -10,8 +10,6 @@ BASE_URL = "https://worker.openpixels.ai"
 
 
 class AsyncOpenPixels:
-    connected_machine_id: str
-
     def __init__(self, api_key: str, base_url=BASE_URL):
         self.base_url = base_url
         self.client = httpx.AsyncClient(
@@ -20,28 +18,20 @@ class AsyncOpenPixels:
             http2=True,
             timeout=5,
         )
-        # self.jobs = {}
 
-    async def submit(self, input: dict) -> str:
-        submit_response = await self.client.post("/submit", json=input)
+    async def _submit(self, input: dict) -> str:
+        submit_response = await self.client.post("/v2/submit", json=input)
         if not submit_response.is_success:
             raise ValueError(f"Failed to submit job: {submit_response.text}")
 
-        self.connected_machine_id = submit_response.headers.get("machine-id")
-        submit_data = submit_response.json()
-        job_id = submit_data.get("id")
-        if not job_id:
-            raise ValueError("No job id received from /submit")
+        return submit_response.json()
 
-        return job_id
-
-    async def subscribe(self, job_id: str) -> AsyncGenerator[dict, None]:
+    async def _subscribe(self, job_id: str) -> AsyncGenerator[dict, None]:
         while True:
             try:
                 poll_response = await self.client.get(
-                    f"/poll/{job_id}",
+                    f"/v2/poll/{job_id}",
                     timeout=30,
-                    headers={"fly-force-instance-id": self.connected_machine_id},
                 )
             except httpx.TimeoutException:
                 continue
@@ -61,34 +51,19 @@ class AsyncOpenPixels:
                 break
 
     async def run(self, payload: dict) -> dict:
-        job_id = await self.submit(payload)
-        async for result in self.subscribe(job_id):
+        result = await self._submit(payload)
+        if result["type"] == "result":
+            return __clean_result(result)
+
+        async for result in self._subscribe(result["id"]):
             if result["type"] == "result":
-                return {
-                    **({"error": result.get("error")} if result.get("error") else {}),
-                    **({"data": result.get("data")} if result.get("data") else {}),
-                    "status": result.get("status"),
-                }
+                return __clean_result(result)
 
     async def close(self):
         await self.client.aclose()
 
 
-# Example usage:
-# async def main():
-#     client = OpenPixelsClient()
-#     try:
-#         result = await client.submit({"some": "data"})
-#         print("Result:", result)
-#     finally:
-#         await client.close()
-#
-# asyncio.run(main())
-
-
 class OpenPixels:
-    connected_machine_id: str
-
     def __init__(self, api_key: str, base_url=BASE_URL):
         self.base_url = base_url
         self.client = httpx.Client(
@@ -97,28 +72,20 @@ class OpenPixels:
             http2=True,
             timeout=5,
         )
-        # self.jobs = {}
 
-    def submit(self, input: dict) -> str:
-        submit_response = self.client.post("/submit", json=input)
+    def _submit(self, input: dict) -> str:
+        submit_response = self.client.post("/v2/submit", json=input)
         if not submit_response.is_success:
             raise ValueError(f"Failed to submit job: {submit_response.text}")
 
-        self.connected_machine_id = submit_response.headers.get("machine-id")
-        submit_data = submit_response.json()
-        job_id = submit_data.get("id")
-        if not job_id:
-            raise ValueError("No job id received from /submit")
+        return submit_response.json()
 
-        return job_id
-
-    def subscribe(self, job_id: str) -> Generator[dict, None, None]:
+    def _subscribe(self, job_id: str) -> Generator[dict, None, None]:
         while True:
             try:
                 poll_response = self.client.get(
-                    f"/poll/{job_id}",
+                    f"/v2/poll/{job_id}",
                     timeout=30,
-                    headers={"fly-force-instance-id": self.connected_machine_id},
                 )
             except httpx.TimeoutException:
                 continue
@@ -138,17 +105,25 @@ class OpenPixels:
                 break
 
     def run(self, payload: dict) -> dict:
-        job_id = self.submit(payload)
-        for result in self.subscribe(job_id):
+        result = self._submit(payload)
+        if result["type"] == "result":
+            return __clean_result(result)
+
+        for result in self._subscribe(result["id"]):
             if result["type"] == "result":
-                return {
-                    **({"error": result.get("error")} if result.get("error") else {}),
-                    **({"data": result.get("data")} if result.get("data") else {}),
-                    "status": result.get("status"),
-                }
+                return __clean_result(result)
 
     def close(self):
         self.client.close()
 
 
 __all__ = ["OpenPixels", "AsyncOpenPixels"]
+
+
+def __clean_result(result: dict) -> dict:
+    if result["type"] == "result":
+        return {
+            **({"error": result.get("error")} if result.get("error") else {}),
+            **({"data": result.get("data")} if result.get("data") else {}),
+            "status": result.get("status"),
+        }
